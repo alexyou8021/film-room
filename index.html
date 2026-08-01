@@ -857,7 +857,8 @@ const db = getFirestore(firebaseApp);
     }catch(e){ /* non-critical */ }
   }
 
-  async function load(id){
+  async function load(id, opts){
+    opts = opts || {};
     videoId = id;
     duration = 0;
     currentTime = 0;
@@ -870,6 +871,13 @@ const db = getFirestore(firebaseApp);
     overlayLayer.innerHTML = '';
     dismissedIds = new Set();
     urlInput.value = '';
+    if(!opts.skipUrlUpdate){
+      try{
+        const url = new URL(location.href);
+        url.searchParams.set('v', id);
+        history.replaceState(null, '', url);
+      }catch(e){ /* non-critical */ }
+    }
     startPolling();
     await loadAnnotations();
     startAnnotationListener();
@@ -906,6 +914,16 @@ const db = getFirestore(firebaseApp);
   });
 
   loadRecent();
+
+  (function initFromUrl(){
+    try{
+      const params = new URLSearchParams(location.search);
+      const v = params.get('v');
+      if(v && extractVideoId(v)){
+        load(extractVideoId(v), { skipUrlUpdate: true });
+      }
+    }catch(e){ /* no params, or an invalid one — just show the empty state */ }
+  })();
 })();
 </script>
 </body>
