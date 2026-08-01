@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Film Room — Ultimate Frisbee Annotator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #12181A;
+    --bg-elevated: #1B2325;
+    --bg-inset: #0D1213;
+    --line: #2A3436;
+    --line-strong: #3A4749;
+    --text: #F1F0E8;
+    --text-dim: #93A09E;
+    --text-faint: #5C6B69;
+    --accent: #D9FF5B;
+    --accent-dim: #8A9C3D;
+    --flag: #FF5A3C;
+    --flag-dim: #7A3226;
+    --radius: 10px;
+    --font-display: 'Oswald', 'Arial Narrow', sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 20px 80px;
+  }
+
+  /* ---------- Header ---------- */
+  header.top{
+    display:flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+  }
+  .brand{
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    font-size: 26px;
+    text-transform: uppercase;
+    display:flex;
+    align-items:center;
+    gap: 10px;
+  }
+  .brand .disc{
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--bg-inset), 0 0 0 4px var(--line-strong);
+    flex-shrink:0;
+  }
+  .brand small{
+    font-family: var(--font-mono);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+  .name-field{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .name-field input{
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    width: 140px;
+  }
+  .name-field input:focus{ outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* ---------- Load bar ---------- */
+  .load-bar{
+    display:flex;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .load-bar input[type=text]{
+    flex:1;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 13px 16px;
+    font-size: 14px;
+    font-family: var(--font-body);
+  }
+  .load-bar input[type=text]:focus{ outline: 2px solid var(--accent); outline-offset: 1px; }
+  .load-bar input[type=text]::placeholder{ color: var(--text-faint); }
+  button{
+    font-family: var(--font-body);
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius);
+  }
+  .btn-primary{
+    background: var(--accent);
+    color: #101512;
+    font-weight: 600;
+    padding: 0 22px;
+    font-size: 14px;
+    letter-spacing: 0.01em;
+  }
+  .btn-primary:hover{ filter: brightness(1.06); }
+  .btn-primary:disabled{ opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost{
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--text-dim);
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+  .btn-ghost:hover{ color: var(--text); border-color: var(--text-dim); }
+
+  .recent-row{
+    display:flex; gap:8px; flex-wrap:wrap; margin: -8px 0 22px;
+  }
+  .recent-chip{
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    padding: 6px 10px;
+    border-radius: 999px;
+  }
+  .recent-chip:hover{ color: var(--accent); border-color: var(--accent-dim); }
+
+  /* ---------- Layout ---------- */
+  .layout{
+    display:grid;
+    grid-template-columns: 1fr 340px;
+    gap: 22px;
+  }
+  @media (max-width: 860px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .empty-state{
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    padding: 70px 24px;
+    text-align:center;
+    color: var(--text-faint);
+  }
+  .empty-state .eyebrow{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .empty-state p{ max-width: 380px; margin: 8px auto 0; font-size: 14px; line-height: 1.6; }
+
+  /* ---------- Player column ---------- */
+  .player-wrap{
+    position: relative;
+    background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+    aspect-ratio: 16/9;
+    border: 1px solid var(--line);
+  }
+  .player-wrap iframe{
+    width: 100%; height: 100%; border: 0; display:block;
+  }
+
+  .overlay-note{
+    position: absolute;
+    left: 12px; right: 12px; bottom: 14px;
+    background: rgba(13,18,19,0.92);
+    border-left: 3px solid var(--flag);
+    border-radius: 8px;
+    padding: 10px 14px;
+    backdrop-filter: blur(2px);
+    animation: slideUp 0.25s ease;
+    pointer-events: none;
+  }
+  .overlay-note + .overlay-note{ margin-bottom: 8px; }
+  .overlay-note .tag{
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--flag);
+    letter-spacing: 0.05em;
+    display:block;
+    margin-bottom: 3px;
+  }
+  .overlay-note .body{ font-size: 14px; line-height: 1.4; }
+  @keyframes slideUp{ from{ opacity:0; transform: translateY(6px);} to{ opacity:1; transform: translateY(0);} }
+
+  /* ---------- Timeline (signature element) ---------- */
+  .timeline-block{
+    margin-top: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px 14px;
+  }
+  .timeline-head{
+    display:flex; justify-content: space-between; align-items:baseline;
+    margin-bottom: 12px;
+  }
+  .timecode{
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+  .timecode .dur{ color: var(--text-faint); font-size: 15px; }
+  .timeline-track{
+    position: relative;
+    height: 34px;
+    cursor: pointer;
+  }
+  .timeline-track .rail{
+    position:absolute; top: 15px; left:0; right:0; height: 4px;
+    background: var(--line-strong);
+    border-radius: 2px;
+  }
+  .timeline-track .fill{
+    position:absolute; top: 15px; left:0; height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    pointer-events:none;
+  }
+  .timeline-track .tick{
+    position:absolute; top: 9px; width:1px; height: 16px;
+    background: var(--line-strong);
+    pointer-events:none;
+  }
+  .timeline-track .playhead{
+    position:absolute; top: 8px; width: 2px; height: 18px;
+    background: var(--text);
+    border-radius: 1px;
+    pointer-events:none;
+  }
+  .timeline-track .flag{
+    position:absolute; top: -2px; width: 10px; height: 22px;
+    transform: translateX(-50%);
+    cursor: pointer;
+  }
+  .timeline-track .flag svg{ width:100%; height:100%; }
+  .timeline-track .flag:hover .flagpole{ stroke: var(--accent); }
+
+  .transport{
+    display:flex; align-items:center; gap: 10px; margin-top: 12px;
+  }
+  .transport .btn-ghost{ font-family: var(--font-mono); }
+
+  /* ---------- Add annotation ---------- */
+  .add-annotation{
+    margin-top: 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display:flex;
+    gap: 10px;
+    align-items:flex-start;
+  }
+  .add-annotation .mark-btn{
+    background: var(--bg-inset);
+    border: 1px solid var(--line-strong);
+    color: var(--flag);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    white-space: nowrap;
+    flex-shrink:0;
+  }
+  .add-annotation .mark-btn:hover{ border-color: var(--flag); }
+  .add-annotation textarea{
+    flex:1;
+    resize: none;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 8px 0;
+    min-height: 20px;
+    max-height: 90px;
+  }
+  .add-annotation textarea:focus{ outline: none; }
+  .add-annotation textarea::placeholder{ color: var(--text-faint); }
+
+  /* ---------- Sidebar: annotation reel ---------- */
+  .reel{
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    display:flex;
+    flex-direction:column;
+    max-height: 640px;
+  }
+  .reel-head{
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  .reel-head h2{
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    margin: 0;
+  }
+  .reel-head .count{
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .reel-list{
+    overflow-y: auto;
+    flex: 1;
+  }
+  .reel-empty{
+    padding: 30px 16px;
+    color: var(--text-faint);
+    font-size: 13px;
+    text-align:center;
+    line-height:1.6;
+  }
+  .reel-item{
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    display:flex;
+    gap: 12px;
+    align-items:flex-start;
+    transition: background 0.12s ease;
+  }
+  .reel-item:hover{ background: var(--bg-inset); }
+  .reel-item.active{ background: rgba(217,255,91,0.06); }
+  .reel-item .time{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--flag);
+    flex-shrink:0;
+    padding-top: 2px;
+    min-width: 42px;
+  }
+  .reel-item .content{ flex:1; min-width:0; }
+  .reel-item .content .txt{ font-size: 13.5px; line-height: 1.5; word-wrap: break-word; }
+  .reel-item .content .meta{
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    display:flex;
+    gap: 8px;
+    align-items:center;
+  }
+  .reel-item .del{
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-size: 15px;
+    line-height:1;
+    padding: 2px 4px;
+    flex-shrink:0;
+  }
+  .reel-item .del:hover{ color: var(--flag); }
+
+  .disclosure{
+    padding: 10px 16px;
+    border-top: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--text-faint);
+    line-height: 1.5;
+  }
+
+  ::-webkit-scrollbar{ width: 8px; }
+  ::-webkit-scrollbar-thumb{ background: var(--line-strong); border-radius: 4px; }
+  ::-webkit-scrollbar-track{ background: transparent; }
+
+  a{ color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="brand">
+      <span class="disc"></span>
+      Film Room <small>// timestamped annotations for game tape</small>
+    </div>
+    <div class="name-field">
+      <label for="displayName">Your name</label>
+      <input id="displayName" type="text" placeholder="Anonymous" maxlength="24">
+    </div>
+  </header>
+
+  <div class="load-bar">
+    <input type="text" id="urlInput" placeholder="Paste a YouTube URL (e.g. https://www.youtube.com/watch?v=...)">
+    <button class="btn-primary" id="loadBtn">Load video</button>
+  </div>
+
+  <div class="recent-row" id="recentRow"></div>
+
+  <div class="layout" id="layout">
+    <div id="emptyState" class="empty-state">
+      <div class="eyebrow">No tape loaded</div>
+      <div style="font-family: var(--font-display); text-transform: uppercase; font-size: 20px; letter-spacing: 0.02em;">Drop in a game film link to start</div>
+      <p>Paste any YouTube URL above. Once it loads, mark the disc at any moment — huck attempts, breaks, calls — and everyone watching this same video sees your notes surface right when playback reaches them.</p>
+    </div>
+
+    <div id="mainCol" style="display:none;">
+      <div class="player-wrap">
+        <iframe id="player" allow="autoplay; encrypted-media" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <div id="overlayLayer"></div>
+      </div>
+
+      <div class="timeline-block">
+        <div class="timeline-head">
+          <div class="timecode"><span id="curTime">0:00</span> <span class="dur">/ <span id="durTime">0:00</span></span></div>
+          <button class="btn-ghost" id="playPauseBtn">Play / Pause</button>
+        </div>
+        <div class="timeline-track" id="track">
+          <div class="rail"></div>
+          <div class="fill" id="fill"></div>
+          <div class="playhead" id="playhead"></div>
+        </div>
+      </div>
+
+      <div class="add-annotation">
+        <button class="mark-btn" id="markBtn">⚑ mark <span id="markTime">0:00</span></button>
+        <textarea id="noteInput" placeholder="What happened at this moment? (press Enter to save)" rows="1"></textarea>
+      </div>
+    </div>
+
+    <div class="reel" id="reelCol" style="display:none;">
+      <div class="reel-head">
+        <h2>Annotation reel</h2>
+        <span class="count" id="reelCount">0</span>
+      </div>
+      <div class="reel-list" id="reelList"></div>
+      <div class="disclosure">Notes on this video are shared — anyone with this app who loads the same URL can see and add to them.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const YT_ORIGIN = 'https://www.youtube.com';
+  let videoId = null;
+  let player = null; // iframe element
+  let listeningReady = false;
+  let duration = 0;
+  let currentTime = 0;
+  let annotations = [];
+  let pollTimer = null;
+  let refreshTimer = null;
+  let activeShownIds = new Set();
+  let seeking = false;
+
+  const $ = (id) => document.getElementById(id);
+  const urlInput = $('urlInput');
+  const loadBtn = $('loadBtn');
+  const emptyState = $('emptyState');
+  const mainCol = $('mainCol');
+  const reelCol = $('reelCol');
+  const playerFrame = $('player');
+  const overlayLayer = $('overlayLayer');
+  const curTimeEl = $('curTime');
+  const durTimeEl = $('durTime');
+  const track = $('track');
+  const fill = $('fill');
+  const playhead = $('playhead');
+  const markBtn = $('markBtn');
+  const markTimeEl = $('markTime');
+  const noteInput = $('noteInput');
+  const reelList = $('reelList');
+  const reelCount = $('reelCount');
+  const playPauseBtn = $('playPauseBtn');
+  const displayNameInput = $('displayName');
+  const recentRow = $('recentRow');
+
+  function fmtTime(t){
+    t = Math.max(0, Math.floor(t||0));
+    const h = Math.floor(t/3600);
+    const m = Math.floor((t%3600)/60);
+    const s = t%60;
+    if(h>0) return h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    return m+':'+String(s).padStart(2,'0');
+  }
+
+  function extractVideoId(raw){
+    if(!raw) return null;
+    raw = raw.trim();
+    try{
+      const u = new URL(raw);
+      const host = u.hostname.replace('www.','');
+      if(host === 'youtu.be'){
+        return u.pathname.slice(1).split('/')[0] || null;
+      }
+      if(host.includes('youtube.com')){
+        if(u.pathname.startsWith('/embed/')) return u.pathname.split('/embed/')[1].split('/')[0];
+        if(u.pathname.startsWith('/shorts/')) return u.pathname.split('/shorts/')[1].split('/')[0];
+        const v = u.searchParams.get('v');
+        if(v) return v;
+      }
+    }catch(e){ /* not a full URL */ }
+    if(/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
+    return null;
+  }
+
+  function postCmd(func, args){
+    if(!playerFrame.contentWindow) return;
+    playerFrame.contentWindow.postMessage(JSON.stringify({event:'command', func: func, args: args || []}), YT_ORIGIN);
+  }
+
+  function postListening(){
+    if(!playerFrame.contentWindow) return;
+    playerFrame.contentWindow.postMessage(JSON.stringify({event:'listening', id: 'player'}), YT_ORIGIN);
+  }
+
+  function handleMessage(e){
+    if(e.origin !== YT_ORIGIN) return;
+    let data;
+    try{ data = JSON.parse(e.data); }catch(err){ return; }
+    if(data.event === 'infoDelivery' && data.info){
+      listeningReady = true;
+      if(typeof data.info.currentTime === 'number' && !seeking){
+        currentTime = data.info.currentTime;
+        updateTimeUI();
+      }
+      if(typeof data.info.duration === 'number' && data.info.duration > 0){
+        duration = data.info.duration;
+        durTimeEl.textContent = fmtTime(duration);
+      }
+    }
+  }
+  window.addEventListener('message', handleMessage);
+
+  function startPolling(){
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(()=>{
+      postListening();
+      postCmd('getCurrentTime');
+      postCmd('getDuration');
+    }, 400);
+  }
+
+  function updateTimeUI(){
+    curTimeEl.textContent = fmtTime(currentTime);
+    if(duration > 0){
+      const pct = Math.min(100, (currentTime/duration)*100);
+      fill.style.width = pct + '%';
+      playhead.style.left = 'calc(' + pct + '% - 1px)';
+    }
+    markTimeEl.textContent = fmtTime(currentTime);
+    checkOverlays();
+  }
+
+  function checkOverlays(){
+    const showing = annotations.filter(a => currentTime >= a.time - 1 && currentTime <= a.time + 4);
+    const showIds = new Set(showing.map(a=>a.id));
+    // remove stale
+    [...overlayLayer.children].forEach(node => {
+      if(!showIds.has(node.dataset.id)) node.remove();
+    });
+    showing.forEach(a => {
+      if(!overlayLayer.querySelector('[data-id="'+a.id+'"]')){
+        const div = document.createElement('div');
+        div.className = 'overlay-note';
+        div.dataset.id = a.id;
+        div.innerHTML = '<span class="tag">⚑ '+fmtTime(a.time)+' — '+escapeHtml(a.author)+'</span><span class="body"></span>';
+        div.querySelector('.body').textContent = a.text;
+        overlayLayer.appendChild(div);
+      }
+    });
+    highlightReel();
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function renderTicks(){
+    [...track.querySelectorAll('.tick')].forEach(n=>n.remove());
+    if(duration <= 0) return;
+    const steps = 10;
+    for(let i=1;i<steps;i++){
+      const tick = document.createElement('div');
+      tick.className = 'tick';
+      tick.style.left = (i*10)+'%';
+      track.insertBefore(tick, fill);
+    }
+  }
+
+  function renderFlags(){
+    [...track.querySelectorAll('.flag')].forEach(n=>n.remove());
+    if(duration <= 0) return;
+    annotations.forEach(a => {
+      const pct = Math.min(100, Math.max(0,(a.time/duration)*100));
+      const flag = document.createElement('div');
+      flag.className = 'flag';
+      flag.style.left = pct + '%';
+      flag.title = fmtTime(a.time) + ' — ' + a.text;
+      flag.innerHTML = '<svg viewBox="0 0 10 22" xmlns="http://www.w3.org/2000/svg"><line class="flagpole" x1="1" y1="2" x2="1" y2="22" stroke="var(--line-strong)" stroke-width="1.5"/><path d="M1 2 L9 5 L1 8 Z" fill="var(--flag)"/></svg>';
+      flag.addEventListener('click', (ev)=>{ ev.stopPropagation(); seekTo(a.time); });
+      track.appendChild(flag);
+    });
+  }
+
+  function seekTo(t){
+    currentTime = t;
+    seeking = true;
+    postCmd('seekTo', [t, true]);
+    postCmd('playVideo');
+    updateTimeUI();
+    setTimeout(()=>{ seeking = false; }, 500);
+  }
+
+  track.addEventListener('click', (e)=>{
+    if(duration <= 0) return;
+    const rect = track.getBoundingClientRect();
+    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left)/rect.width));
+    seekTo(pct * duration);
+  });
+
+  playPauseBtn.addEventListener('click', ()=>{
+    postCmd('getPlayerState');
+    // simplest reliable toggle: try pause then if already paused it just pauses; use both states via quick check
+    if(playPauseBtn.dataset.playing === 'true'){
+      postCmd('pauseVideo'); playPauseBtn.dataset.playing = 'false';
+    } else {
+      postCmd('playVideo'); playPauseBtn.dataset.playing = 'true';
+    }
+  });
+
+  function renderReel(){
+    reelCount.textContent = annotations.length;
+    if(annotations.length === 0){
+      reelList.innerHTML = '<div class="reel-empty">No marks yet. Play the tape and hit ⚑ mark to drop your first note.</div>';
+      return;
+    }
+    const sorted = [...annotations].sort((a,b)=>a.time-b.time);
+    reelList.innerHTML = '';
+    sorted.forEach(a => {
+      const item = document.createElement('div');
+      item.className = 'reel-item';
+      item.dataset.id = a.id;
+      item.innerHTML =
+        '<div class="time">'+fmtTime(a.time)+'</div>'+
+        '<div class="content"><div class="txt"></div><div class="meta"><span></span></div></div>'+
+        '<button class="del" title="Delete">×</button>';
+      item.querySelector('.txt').textContent = a.text;
+      item.querySelector('.meta span').textContent = a.author + ' · added ' + timeAgo(a.createdAt);
+      item.addEventListener('click', (ev)=>{
+        if(ev.target.closest('.del')) return;
+        seekTo(a.time);
+      });
+      item.querySelector('.del').addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        deleteAnnotation(a.id);
+      });
+      reelList.appendChild(item);
+    });
+  }
+
+  function highlightReel(){
+    const active = annotations.filter(a => currentTime >= a.time - 1 && currentTime <= a.time + 4).map(a=>a.id);
+    [...reelList.children].forEach(node => {
+      node.classList.toggle('active', active.includes(node.dataset.id));
+    });
+  }
+
+  function timeAgo(ts){
+    const diff = Math.max(0, Date.now() - ts);
+    const min = Math.floor(diff/60000);
+    if(min < 1) return 'just now';
+    if(min < 60) return min+'m ago';
+    const hr = Math.floor(min/60);
+    if(hr < 24) return hr+'h ago';
+    return Math.floor(hr/24)+'d ago';
+  }
+
+  async function loadAnnotations(){
+    try{
+      const res = await window.storage.get('annotations:'+videoId, true);
+      annotations = res ? JSON.parse(res.value) : [];
+    }catch(e){
+      annotations = [];
+    }
+    renderReel();
+    renderFlags();
+  }
+
+  async function saveAnnotations(){
+    try{
+      await window.storage.set('annotations:'+videoId, JSON.stringify(annotations), true);
+    }catch(e){
+      console.error('Storage error saving annotations', e);
+    }
+  }
+
+  async function addAnnotation(){
+    const text = noteInput.value.trim();
+    if(!text || !videoId) return;
+    const author = displayNameInput.value.trim() || 'Anonymous';
+    const note = {
+      id: 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      time: currentTime,
+      text: text,
+      author: author,
+      createdAt: Date.now()
+    };
+    annotations.push(note);
+    noteInput.value = '';
+    renderReel();
+    renderFlags();
+    checkOverlays();
+    await saveAnnotations();
+  }
+
+  async function deleteAnnotation(id){
+    annotations = annotations.filter(a => a.id !== id);
+    renderReel();
+    renderFlags();
+    checkOverlays();
+    await saveAnnotations();
+  }
+
+  function startRefreshPolling(){
+    if(refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(async ()=>{
+      try{
+        const res = await window.storage.get('annotations:'+videoId, true);
+        const fresh = res ? JSON.parse(res.value) : [];
+        if(JSON.stringify(fresh) !== JSON.stringify(annotations)){
+          annotations = fresh;
+          renderReel();
+          renderFlags();
+          checkOverlays();
+        }
+      }catch(e){ /* ignore transient errors */ }
+    }, 5000);
+  }
+
+  async function loadRecent(){
+    try{
+      const res = await window.storage.get('recent-videos', false);
+      const list = res ? JSON.parse(res.value) : [];
+      recentRow.innerHTML = '';
+      list.slice(0,8).forEach(v => {
+        const chip = document.createElement('button');
+        chip.className = 'recent-chip';
+        chip.textContent = v.id;
+        chip.addEventListener('click', ()=> load(v.id));
+        recentRow.appendChild(chip);
+      });
+    }catch(e){ /* no recents yet */ }
+  }
+
+  async function pushRecent(id){
+    try{
+      let list = [];
+      try{
+        const res = await window.storage.get('recent-videos', false);
+        list = res ? JSON.parse(res.value) : [];
+      }catch(e){ list = []; }
+      list = list.filter(v => v.id !== id);
+      list.unshift({id: id, addedAt: Date.now()});
+      list = list.slice(0,8);
+      await window.storage.set('recent-videos', JSON.stringify(list), false);
+      loadRecent();
+    }catch(e){ /* non-critical */ }
+  }
+
+  async function load(id){
+    videoId = id;
+    duration = 0;
+    currentTime = 0;
+    listeningReady = false;
+    emptyState.style.display = 'none';
+    mainCol.style.display = 'block';
+    reelCol.style.display = 'flex';
+    playerFrame.src = 'https://www.youtube.com/embed/'+id+'?enablejsapi=1&playsinline=1&rel=0';
+    playPauseBtn.dataset.playing = 'true';
+    overlayLayer.innerHTML = '';
+    urlInput.value = '';
+    startPolling();
+    await loadAnnotations();
+    startRefreshPolling();
+    pushRecent(id);
+  }
+
+  loadBtn.addEventListener('click', ()=>{
+    const id = extractVideoId(urlInput.value);
+    if(!id){
+      urlInput.style.borderColor = 'var(--flag)';
+      setTimeout(()=>{ urlInput.style.borderColor = ''; }, 900);
+      return;
+    }
+    load(id);
+  });
+  urlInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') loadBtn.click(); });
+
+  markBtn.addEventListener('click', ()=> noteInput.focus());
+  noteInput.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      addAnnotation();
+    }
+  });
+  noteInput.addEventListener('input', ()=>{
+    noteInput.style.height = 'auto';
+    noteInput.style.height = Math.min(90, noteInput.scrollHeight) + 'px';
+  });
+
+  loadRecent();
+})();
+</script>
+</body>
+</html>
