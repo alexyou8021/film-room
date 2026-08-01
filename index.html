@@ -191,18 +191,40 @@
     width: 100%; height: 100%; border: 0; display:block;
   }
 
-  .overlay-note{
+  #overlayLayer{
     position: absolute;
     left: 12px; right: 12px; bottom: 14px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .overlay-note{
     background: rgba(13,18,19,0.92);
     border-left: 3px solid var(--flag);
     border-radius: 8px;
-    padding: 10px 14px;
+    padding: 10px 30px 10px 14px;
     backdrop-filter: blur(2px);
     animation: slideUp 0.25s ease;
     pointer-events: none;
+    position: relative;
   }
-  .overlay-note + .overlay-note{ margin-bottom: 8px; }
+  .overlay-note .overlay-close{
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 20px; height: 20px;
+    display: flex; align-items:center; justify-content:center;
+    background: transparent;
+    border: none;
+    color: var(--text-faint);
+    font-size: 16px;
+    line-height: 1;
+    padding: 0;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .overlay-note .overlay-close:hover{ color: var(--text); }
   .overlay-note .tag{
     font-family: var(--font-mono);
     font-size: 11px;
@@ -262,12 +284,12 @@
     pointer-events:none;
   }
   .timeline-track .flag{
-    position:absolute; top: -2px; width: 10px; height: 22px;
+    position:absolute; top: 2px; width: 14px; height: 18px;
     transform: translateX(-50%);
     cursor: pointer;
   }
   .timeline-track .flag svg{ width:100%; height:100%; }
-  .timeline-track .flag:hover .flagpole{ stroke: var(--accent); }
+  .timeline-track .flag:hover .pin-body{ fill: var(--accent); }
 
   .transport{
     display:flex; align-items:center; gap: 10px; margin-top: 12px;
@@ -294,7 +316,11 @@
     padding: 10px 12px;
     white-space: nowrap;
     flex-shrink:0;
+    display:flex;
+    align-items:center;
+    gap: 7px;
   }
+  .add-annotation .mark-btn svg{ flex-shrink:0; }
   .add-annotation .mark-btn:hover{ border-color: var(--flag); }
   .add-annotation textarea{
     flex:1;
@@ -454,7 +480,7 @@
       </div>
 
       <div class="add-annotation">
-        <button class="mark-btn" id="markBtn">⚑ mark <span id="markTime">0:00</span></button>
+        <button class="mark-btn" id="markBtn"><svg width="12" height="15" viewBox="0 0 16 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 0C3.6 0 0 3.4 0 7.6 0 13 8 20 8 20S16 13 16 7.6C16 3.4 12.4 0 8 0Z" fill="currentColor"/><circle cx="8" cy="7.5" r="3" fill="var(--bg-elevated)"/></svg> Annotate <span id="markTime">0:00</span></button>
         <textarea id="noteInput" placeholder="What happened at this moment? (press Enter to save)" rows="1"></textarea>
       </div>
     </div>
@@ -471,7 +497,23 @@
 
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDkimpg5sdolEZU7ShbFTr8_H2BpNhU4lE",
+  authDomain: "film-room-dc4a2.firebaseapp.com",
+  projectId: "film-room-dc4a2",
+  storageBucket: "film-room-dc4a2.firebasestorage.app",
+  messagingSenderId: "54905437770",
+  appId: "1:54905437770:web:01e458311c6db295d4f0b3"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+
 (function(){
   const YT_ORIGIN = 'https://www.youtube.com';
   let videoId = null;
@@ -481,8 +523,9 @@
   let currentTime = 0;
   let annotations = [];
   let pollTimer = null;
-  let refreshTimer = null;
+  let unsubscribeAnnotations = null;
   let activeShownIds = new Set();
+  let dismissedIds = new Set();
   let seeking = false;
 
   const $ = (id) => document.getElementById(id);
@@ -586,18 +629,27 @@
 
   function checkOverlays(){
     const showing = annotations.filter(a => currentTime >= a.time - 1 && currentTime <= a.time + 4);
-    const showIds = new Set(showing.map(a=>a.id));
+    // an id only stays "dismissed" while still inside its own window; once playback
+    // exits the window, clear it so scrubbing back later shows the note again
+    const stillInWindow = new Set(showing.map(a=>a.id));
+    [...dismissedIds].forEach(id => { if(!stillInWindow.has(id)) dismissedIds.delete(id); });
+    const visible = showing.filter(a => !dismissedIds.has(a.id));
+    const showIds = new Set(visible.map(a=>a.id));
     // remove stale
     [...overlayLayer.children].forEach(node => {
       if(!showIds.has(node.dataset.id)) node.remove();
     });
-    showing.forEach(a => {
+    visible.forEach(a => {
       if(!overlayLayer.querySelector('[data-id="'+a.id+'"]')){
         const div = document.createElement('div');
         div.className = 'overlay-note';
         div.dataset.id = a.id;
-        div.innerHTML = '<span class="tag">⚑ '+fmtTime(a.time)+' — '+escapeHtml(a.author)+'</span><span class="body"></span>';
+        div.innerHTML = '<span class="tag">'+fmtTime(a.time)+' — '+escapeHtml(a.author)+'</span><span class="body"></span><button class="overlay-close" aria-label="Dismiss annotation" title="Dismiss">×</button>';
         div.querySelector('.body').textContent = a.text;
+        div.querySelector('.overlay-close').addEventListener('click', ()=>{
+          dismissedIds.add(a.id);
+          div.remove();
+        });
         overlayLayer.appendChild(div);
       }
     });
@@ -631,7 +683,7 @@
       flag.className = 'flag';
       flag.style.left = pct + '%';
       flag.title = fmtTime(a.time) + ' — ' + a.text;
-      flag.innerHTML = '<svg viewBox="0 0 10 22" xmlns="http://www.w3.org/2000/svg"><line class="flagpole" x1="1" y1="2" x2="1" y2="22" stroke="var(--line-strong)" stroke-width="1.5"/><path d="M1 2 L9 5 L1 8 Z" fill="var(--flag)"/></svg>';
+      flag.innerHTML = '<svg viewBox="0 0 16 20" xmlns="http://www.w3.org/2000/svg"><path class="pin-body" d="M8 0C3.6 0 0 3.4 0 7.6 0 13 8 20 8 20S16 13 16 7.6C16 3.4 12.4 0 8 0Z" fill="var(--flag)"/><circle cx="8" cy="7.5" r="3" fill="var(--bg-elevated)"/></svg>';
       flag.addEventListener('click', (ev)=>{ ev.stopPropagation(); seekTo(a.time); });
       track.appendChild(flag);
     });
@@ -666,7 +718,7 @@
   function renderReel(){
     reelCount.textContent = annotations.length;
     if(annotations.length === 0){
-      reelList.innerHTML = '<div class="reel-empty">No marks yet. Play the tape and hit ⚑ mark to drop your first note.</div>';
+      reelList.innerHTML = '<div class="reel-empty">No marks yet. Play the tape and hit Annotate to drop your first note.</div>';
       return;
     }
     const sorted = [...annotations].sort((a,b)=>a.time-b.time);
@@ -710,11 +762,19 @@
     return Math.floor(hr/24)+'d ago';
   }
 
+  function applyAnnotations(fresh){
+    annotations = fresh;
+    renderReel();
+    renderFlags();
+    checkOverlays();
+  }
+
   async function loadAnnotations(){
     try{
-      const res = await window.storage.get('annotations:'+videoId, true);
-      annotations = res ? JSON.parse(res.value) : [];
+      const snap = await getDoc(doc(db, 'annotations', videoId));
+      annotations = snap.exists() ? (snap.data().items || []) : [];
     }catch(e){
+      console.error('Firestore read error', e);
       annotations = [];
     }
     renderReel();
@@ -723,9 +783,9 @@
 
   async function saveAnnotations(){
     try{
-      await window.storage.set('annotations:'+videoId, JSON.stringify(annotations), true);
+      await setDoc(doc(db, 'annotations', videoId), { items: annotations, updatedAt: Date.now() });
     }catch(e){
-      console.error('Storage error saving annotations', e);
+      console.error('Firestore write error', e);
     }
   }
 
@@ -756,26 +816,21 @@
     await saveAnnotations();
   }
 
-  function startRefreshPolling(){
-    if(refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(async ()=>{
-      try{
-        const res = await window.storage.get('annotations:'+videoId, true);
-        const fresh = res ? JSON.parse(res.value) : [];
-        if(JSON.stringify(fresh) !== JSON.stringify(annotations)){
-          annotations = fresh;
-          renderReel();
-          renderFlags();
-          checkOverlays();
-        }
-      }catch(e){ /* ignore transient errors */ }
-    }, 5000);
+  function startAnnotationListener(){
+    if(unsubscribeAnnotations) unsubscribeAnnotations();
+    unsubscribeAnnotations = onSnapshot(doc(db, 'annotations', videoId), (snap)=>{
+      const fresh = snap.exists() ? (snap.data().items || []) : [];
+      // Skip re-render if this update is just an echo of our own last write
+      if(JSON.stringify(fresh) !== JSON.stringify(annotations)){
+        applyAnnotations(fresh);
+      }
+    }, (err)=>{ console.error('Firestore listen error', err); });
   }
 
   async function loadRecent(){
     try{
-      const res = await window.storage.get('recent-videos', false);
-      const list = res ? JSON.parse(res.value) : [];
+      const snap = await getDoc(doc(db, 'meta', 'recent-videos'));
+      const list = snap.exists() ? (snap.data().items || []) : [];
       recentRow.innerHTML = '';
       list.slice(0,8).forEach(v => {
         const chip = document.createElement('button');
@@ -791,13 +846,13 @@
     try{
       let list = [];
       try{
-        const res = await window.storage.get('recent-videos', false);
-        list = res ? JSON.parse(res.value) : [];
+        const snap = await getDoc(doc(db, 'meta', 'recent-videos'));
+        list = snap.exists() ? (snap.data().items || []) : [];
       }catch(e){ list = []; }
       list = list.filter(v => v.id !== id);
       list.unshift({id: id, addedAt: Date.now()});
       list = list.slice(0,8);
-      await window.storage.set('recent-videos', JSON.stringify(list), false);
+      await setDoc(doc(db, 'meta', 'recent-videos'), { items: list });
       loadRecent();
     }catch(e){ /* non-critical */ }
   }
@@ -813,10 +868,11 @@
     playerFrame.src = 'https://www.youtube.com/embed/'+id+'?enablejsapi=1&playsinline=1&rel=0';
     playPauseBtn.dataset.playing = 'true';
     overlayLayer.innerHTML = '';
+    dismissedIds = new Set();
     urlInput.value = '';
     startPolling();
     await loadAnnotations();
-    startRefreshPolling();
+    startAnnotationListener();
     pushRecent(id);
   }
 
@@ -831,7 +887,13 @@
   });
   urlInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') loadBtn.click(); });
 
-  markBtn.addEventListener('click', ()=> noteInput.focus());
+  markBtn.addEventListener('click', ()=>{
+    if(noteInput.value.trim()){
+      addAnnotation();
+    } else {
+      noteInput.focus();
+    }
+  });
   noteInput.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter' && !e.shiftKey){
       e.preventDefault();
