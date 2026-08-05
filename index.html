@@ -137,17 +137,32 @@
   }
   .btn-ghost:hover{ color: var(--text); border-color: var(--text-dim); }
 
+  .recent-wrap{
+    margin-bottom: 22px;
+  }
+  .recent-label{
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
   .recent-row{
-    display:flex; gap:8px; flex-wrap:wrap; margin: -8px 0 22px;
+    display:flex; gap:8px; flex-wrap:wrap;
   }
   .recent-chip{
     background: var(--bg-elevated);
     border: 1px solid var(--line);
     color: var(--text-dim);
-    font-size: 12px;
-    font-family: var(--font-mono);
-    padding: 6px 10px;
+    font-size: 12.5px;
+    font-family: var(--font-body);
+    padding: 6px 14px;
     border-radius: 999px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .recent-chip:hover{ color: var(--accent); border-color: var(--accent-dim); }
 
@@ -292,7 +307,7 @@
   .timeline-track .flag:hover .pin-body{ fill: var(--accent); }
 
   .transport{
-    display:flex; align-items:center; gap: 10px; margin-top: 12px;
+    display:flex; align-items:center; gap: 8px;
   }
   .transport .btn-ghost{ font-family: var(--font-mono); }
 
@@ -407,16 +422,51 @@
     gap: 8px;
     align-items:center;
   }
+  .reel-item .actions{
+    display:flex;
+    flex-direction:column;
+    gap: 2px;
+    flex-shrink:0;
+  }
+  .reel-item .edit,
   .reel-item .del{
     background: none;
     border: none;
     color: var(--text-faint);
-    font-size: 15px;
+    font-size: 13px;
     line-height:1;
     padding: 2px 4px;
-    flex-shrink:0;
   }
+  .reel-item .del{ font-size: 15px; }
+  .reel-item .edit:hover{ color: var(--accent); }
   .reel-item .del:hover{ color: var(--flag); }
+
+  .reel-item .edit-box textarea{
+    width: 100%;
+    background: var(--bg-inset);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    line-height: 1.5;
+    padding: 6px 8px;
+    resize: none;
+    min-height: 40px;
+  }
+  .reel-item .edit-box textarea:focus{ outline: 1px solid var(--accent); }
+  .reel-item .edit-actions{
+    display:flex; gap: 8px; margin-top: 6px;
+  }
+  .reel-item .edit-actions button{
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--bg-inset);
+    border: 1px solid var(--line-strong);
+    color: var(--text-dim);
+  }
+  .reel-item .edit-actions .save-edit{ color: var(--accent); border-color: var(--accent-dim); }
+  .reel-item .edit-actions button:hover{ color: var(--text); }
 
   .disclosure{
     padding: 10px 16px;
@@ -452,7 +502,10 @@
     <button class="btn-primary" id="loadBtn">Load video</button>
   </div>
 
-  <div class="recent-row" id="recentRow"></div>
+  <div class="recent-wrap" id="recentWrap" style="display:none;">
+    <div class="recent-label">Recently watched</div>
+    <div class="recent-row" id="recentRow"></div>
+  </div>
 
   <div class="layout" id="layout">
     <div id="emptyState" class="empty-state">
@@ -470,7 +523,11 @@
       <div class="timeline-block">
         <div class="timeline-head">
           <div class="timecode"><span id="curTime">0:00</span> <span class="dur">/ <span id="durTime">0:00</span></span></div>
-          <button class="btn-ghost" id="playPauseBtn">Play / Pause</button>
+          <div class="transport">
+            <button class="btn-ghost" id="skipBackBtn" title="Back 10 seconds">−10s</button>
+            <button class="btn-ghost" id="playPauseBtn">Play / Pause</button>
+            <button class="btn-ghost" id="skipFwdBtn" title="Forward 10 seconds">+10s</button>
+          </div>
         </div>
         <div class="timeline-track" id="track">
           <div class="rail"></div>
@@ -547,8 +604,11 @@ const db = getFirestore(firebaseApp);
   const reelList = $('reelList');
   const reelCount = $('reelCount');
   const playPauseBtn = $('playPauseBtn');
+  const skipBackBtn = $('skipBackBtn');
+  const skipFwdBtn = $('skipFwdBtn');
   const displayNameInput = $('displayName');
   const recentRow = $('recentRow');
+  const recentWrap = $('recentWrap');
 
   function fmtTime(t){
     t = Math.max(0, Math.floor(t||0));
@@ -640,7 +700,8 @@ const db = getFirestore(firebaseApp);
       if(!showIds.has(node.dataset.id)) node.remove();
     });
     visible.forEach(a => {
-      if(!overlayLayer.querySelector('[data-id="'+a.id+'"]')){
+      const existing = overlayLayer.querySelector('[data-id="'+a.id+'"]');
+      if(!existing){
         const div = document.createElement('div');
         div.className = 'overlay-note';
         div.dataset.id = a.id;
@@ -651,6 +712,9 @@ const db = getFirestore(firebaseApp);
           div.remove();
         });
         overlayLayer.appendChild(div);
+      } else {
+        const bodyEl = existing.querySelector('.body');
+        if(bodyEl.textContent !== a.text) bodyEl.textContent = a.text;
       }
     });
     highlightReel();
@@ -689,11 +753,12 @@ const db = getFirestore(firebaseApp);
     });
   }
 
-  function seekTo(t){
+  function seekTo(t, autoplay){
+    if(autoplay === undefined) autoplay = true;
     currentTime = t;
     seeking = true;
     postCmd('seekTo', [t, true]);
-    postCmd('playVideo');
+    if(autoplay) postCmd('playVideo');
     updateTimeUI();
     setTimeout(()=>{ seeking = false; }, 500);
   }
@@ -715,6 +780,14 @@ const db = getFirestore(firebaseApp);
     }
   });
 
+  skipBackBtn.addEventListener('click', ()=>{
+    seekTo(Math.max(0, currentTime - 10), false);
+  });
+  skipFwdBtn.addEventListener('click', ()=>{
+    const cap = duration > 0 ? duration : currentTime + 10;
+    seekTo(Math.min(cap, currentTime + 10), false);
+  });
+
   function renderReel(){
     reelCount.textContent = annotations.length;
     if(annotations.length === 0){
@@ -730,18 +803,67 @@ const db = getFirestore(firebaseApp);
       item.innerHTML =
         '<div class="time">'+fmtTime(a.time)+'</div>'+
         '<div class="content"><div class="txt"></div><div class="meta"><span></span></div></div>'+
-        '<button class="del" title="Delete">×</button>';
+        '<div class="actions"><button class="edit" title="Edit">✎</button><button class="del" title="Delete">×</button></div>';
       item.querySelector('.txt').textContent = a.text;
-      item.querySelector('.meta span').textContent = a.author + ' · added ' + timeAgo(a.createdAt);
+      const metaText = a.author + ' · added ' + timeAgo(a.createdAt) + (a.editedAt ? ' · edited ' + timeAgo(a.editedAt) : '');
+      item.querySelector('.meta span').textContent = metaText;
       item.addEventListener('click', (ev)=>{
-        if(ev.target.closest('.del')) return;
+        if(ev.target.closest('.del') || ev.target.closest('.edit') || ev.target.closest('.edit-box')) return;
         seekTo(a.time);
       });
       item.querySelector('.del').addEventListener('click', (ev)=>{
         ev.stopPropagation();
         deleteAnnotation(a.id);
       });
+      item.querySelector('.edit').addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        startEditingAnnotation(item, a);
+      });
       reelList.appendChild(item);
+    });
+  }
+
+  function startEditingAnnotation(item, a){
+    const contentEl = item.querySelector('.content');
+    const original = contentEl.innerHTML;
+    contentEl.innerHTML =
+      '<div class="edit-box">'+
+        '<textarea rows="2"></textarea>'+
+        '<div class="edit-actions">'+
+          '<button class="save-edit">Save</button>'+
+          '<button class="cancel-edit">Cancel</button>'+
+        '</div>'+
+      '</div>';
+    const textarea = contentEl.querySelector('textarea');
+    textarea.value = a.text;
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(120, textarea.scrollHeight) + 'px';
+    textarea.addEventListener('input', ()=>{
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(120, textarea.scrollHeight) + 'px';
+    });
+
+    function cancel(){ contentEl.innerHTML = original; }
+    function save(){
+      const newText = textarea.value.trim();
+      if(!newText){ cancel(); return; }
+      const target = annotations.find(x => x.id === a.id);
+      if(target){
+        target.text = newText;
+        target.editedAt = Date.now();
+      }
+      renderReel();
+      checkOverlays();
+      saveAnnotations();
+    }
+
+    contentEl.querySelector('.save-edit').addEventListener('click', (ev)=>{ ev.stopPropagation(); save(); });
+    contentEl.querySelector('.cancel-edit').addEventListener('click', (ev)=>{ ev.stopPropagation(); cancel(); });
+    textarea.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); save(); }
+      if(e.key === 'Escape'){ e.preventDefault(); cancel(); }
     });
   }
 
@@ -827,34 +949,60 @@ const db = getFirestore(firebaseApp);
     }, (err)=>{ console.error('Firestore listen error', err); });
   }
 
-  async function loadRecent(){
+  async function fetchVideoTitle(id){
     try{
-      const snap = await getDoc(doc(db, 'meta', 'recent-videos'));
-      const list = snap.exists() ? (snap.data().items || []) : [];
+      const res = await fetch('https://www.youtube.com/oembed?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id) + '&format=json');
+      if(!res.ok) return null;
+      const data = await res.json();
+      return data.title || null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  const RECENT_KEY = 'frisbee-film-room:recent-videos';
+
+  function loadRecent(){
+    try{
+      const raw = localStorage.getItem(RECENT_KEY);
+      const list = raw ? JSON.parse(raw) : [];
       recentRow.innerHTML = '';
-      list.slice(0,8).forEach(v => {
+      const top3 = list.slice(0,3);
+      recentWrap.style.display = top3.length ? 'block' : 'none';
+      top3.forEach(v => {
         const chip = document.createElement('button');
         chip.className = 'recent-chip';
-        chip.textContent = v.id;
+        const label = v.title || v.id;
+        chip.textContent = label;
+        chip.title = label;
         chip.addEventListener('click', ()=> load(v.id));
         recentRow.appendChild(chip);
       });
-    }catch(e){ /* no recents yet */ }
+    }catch(e){ console.error('loadRecent failed (localStorage unavailable or blocked):', e); }
   }
 
   async function pushRecent(id){
     try{
       let list = [];
       try{
-        const snap = await getDoc(doc(db, 'meta', 'recent-videos'));
-        list = snap.exists() ? (snap.data().items || []) : [];
+        const raw = localStorage.getItem(RECENT_KEY);
+        list = raw ? JSON.parse(raw) : [];
       }catch(e){ list = []; }
       list = list.filter(v => v.id !== id);
-      list.unshift({id: id, addedAt: Date.now()});
-      list = list.slice(0,8);
-      await setDoc(doc(db, 'meta', 'recent-videos'), { items: list });
+      list.unshift({id: id, title: null, addedAt: Date.now()});
+      list = list.slice(0,3);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(list));
       loadRecent();
-    }catch(e){ /* non-critical */ }
+      // fetch the title in the background and patch it in once known, without blocking the chip from appearing
+      const title = await fetchVideoTitle(id);
+      if(title){
+        const raw2 = localStorage.getItem(RECENT_KEY);
+        let list2 = raw2 ? JSON.parse(raw2) : [];
+        list2 = list2.map(v => v.id === id ? { ...v, title: title } : v);
+        localStorage.setItem(RECENT_KEY, JSON.stringify(list2));
+        loadRecent();
+      }
+    }catch(e){ console.error('pushRecent failed (localStorage unavailable or blocked):', e); }
   }
 
   async function load(id, opts){
